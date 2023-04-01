@@ -1,0 +1,38 @@
+services:
+  php:
+    build:
+      context: ./dockerfiles
+      dockerfile: php.dockerfile
+    volumes:
+      - ./app:/var/www/html
+      - ./docker/php/conf.d/error_reporting.ini:/usr/local/etc/php/conf.d/error_reporting.ini
+    networks:
+      laravel-api-network:
+        ipv4_address: 172.83.31.11
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./app:/var/www/html
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+    networks:
+      laravel-api-network:
+        ipv4_address: 172.83.31.12
+
+  mysql:
+    image: mysql:latest
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+      - ./docker/mysql:/var/lib/mysql
+    networks:
+      laravel-api-network:
+        ipv4_address: 172.83.31.13
+
+networks:
+  laravel-api-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.83.31.0/24
