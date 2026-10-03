@@ -1,12 +1,20 @@
-FROM php:8.1-fpm
+FROM php:8.5-fpm
 
-RUN apt-get update && apt-get install -y zlib1g-dev g++ git libicu-dev zip libzip-dev zip \
-    && docker-php-ext-install intl opcache pdo pdo_mysql \
-    && pecl install apcu \
-    && docker-php-ext-enable apcu \
-    && docker-php-ext-configure zip \
-    && docker-php-ext-install zip
+ARG UID=1000
+ARG GID=1000
+ARG INSTALL_XDEBUG=true
 
-WORKDIR /var/www/html
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git unzip libicu-dev libzip-dev \
+    && docker-php-ext-install intl pdo_mysql zip \
+    && if [ "$INSTALL_XDEBUG" = "true" ]; then pecl install xdebug && docker-php-ext-enable xdebug; fi \
+    && rm -rf /var/lib/apt/lists/* /tmp/pear
 
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+
+# Run PHP-FPM and CLI as the host user so files created in bind mounts are not root-owned
+RUN groupmod -o -g ${GID} www-data && usermod -o -u ${UID} -g ${GID} www-data
+
+USER www-data
+
+WORKDIR /var/www/html/laravel

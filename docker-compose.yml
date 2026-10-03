@@ -3,36 +3,45 @@ services:
     build:
       context: ./dockerfiles
       dockerfile: php.dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    environment:
+      XDEBUG_MODE: ${XDEBUG_MODE:-off}
+    extra_hosts:
+      - host.docker.internal:host-gateway
     volumes:
       - ./app:/var/www/html
-      - ./docker/php/conf.d/error_reporting.ini:/usr/local/etc/php/conf.d/error_reporting.ini
-    networks:
-      laravel-api-network:
-        ipv4_address: 172.83.31.11
+      - ./docker/php/conf.d/error_reporting.ini:/usr/local/etc/php/conf.d/error_reporting.ini:ro
+      - ./docker/php/conf.d/xdebug.ini:/usr/local/etc/php/conf.d/zz-xdebug.ini:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   nginx:
-    image: nginx:latest
+    image: nginx:1.30-alpine
+    ports:
+      - ${APP_PORT:-8080}:80
     volumes:
-      - ./app:/var/www/html
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d
-    networks:
-      laravel-api-network:
-        ipv4_address: 172.83.31.12
+      - ./app:/var/www/html:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - php
 
   mysql:
-    image: mysql:latest
+    image: mysql:9.7
     environment:
-      - MYSQL_ROOT_PASSWORD=root
+      MYSQL_DATABASE: ${DB_DATABASE:-laravel}
+      MYSQL_USER: ${DB_USERNAME:-laravel}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
     volumes:
-      - ./docker/mysql:/var/lib/mysql
-    networks:
-      laravel-api-network:
-        ipv4_address: 172.83.31.13
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-networks:
-  laravel-api-network:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.83.31.0/24
+volumes:
+  mysql-data:
